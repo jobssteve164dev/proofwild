@@ -9,6 +9,10 @@ import previousResearchRecordSchema from "../../../spec/labs/5.0.0/research-reco
 import worldBranchSchema from "../../../spec/labs/6.0.0/world-branch.schema.json" with {type: "json"};
 import researchTaskSchema from "../../../spec/labs/6.0.0/research-task.schema.json" with {type: "json"};
 import researchRecordSchema from "../../../spec/labs/6.0.0/research-record.schema.json" with {type: "json"};
+import methodProposalSchema from "../../../spec/labs/7.0.0/method-proposal.schema.json" with {type: "json"};
+import methodCritiqueSchema from "../../../spec/labs/7.0.0/method-critique.schema.json" with {type: "json"};
+import methodEvaluationSchema from "../../../spec/labs/7.0.0/method-evaluation.schema.json" with {type: "json"};
+import researchPolicyModelSchema from "../../../spec/labs/7.0.0/research-policy-model.schema.json" with {type: "json"};
 import previousSupplyBlockSchema from "../../../spec/sai/0.4.0/world-supply-block.schema.json" with {type: "json"};
 import previousSupplyScheduleSchema from "../../../spec/sai/0.4.0/world-supply-schedule.schema.json" with {type: "json"};
 import previousSupplyStateSchema from "../../../spec/sai/0.4.0/world-supply-state.schema.json" with {type: "json"};
@@ -42,6 +46,10 @@ const PROTOCOL_SCHEMAS: Record<string, unknown> = {
   "/spec/labs/6.0.0/world-branch.schema.json": worldBranchSchema,
   "/spec/labs/6.0.0/research-task.schema.json": researchTaskSchema,
   "/spec/labs/6.0.0/research-record.schema.json": researchRecordSchema,
+  "/spec/labs/7.0.0/method-proposal.schema.json": methodProposalSchema,
+  "/spec/labs/7.0.0/method-critique.schema.json": methodCritiqueSchema,
+  "/spec/labs/7.0.0/method-evaluation.schema.json": methodEvaluationSchema,
+  "/spec/labs/7.0.0/research-policy-model.schema.json": researchPolicyModelSchema,
   "/spec/sai/0.4.0/world-supply-schedule.schema.json": previousSupplyScheduleSchema,
   "/spec/sai/0.4.0/world-supply-block.schema.json": previousSupplyBlockSchema,
   "/spec/sai/0.4.0/world-supply-state.schema.json": previousSupplyStateSchema,

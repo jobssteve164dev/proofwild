@@ -879,6 +879,8 @@ export const REFERENCE_RULESET: LabsRuleset = {
 };
 
 export const REFERENCE_RULESET_ID = rulesetId(REFERENCE_RULESET);
+
+export * from "./methods.js";
 export const REFERENCE_RESULTS = Object.fromEntries(REFERENCE_RULESET.baselines.map((baseline) => {
   const record = createLabsResult(REFERENCE_RULESET, baseline.sequence);
   return [String(baseline.length), record];

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://proofwild.science/spec/labs/7.0.0/method-evaluation.schema.json",
+  "title": "Proofwild deterministic LABS method evaluation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "proposal_id", "task_id", "evaluated_candidates", "mask_digest", "best_mask", "result", "result_id", "baseline_energy", "best_energy", "energy_delta", "prediction_met"],
+  "properties": {
+    "protocol": {"const": "proofwild-labs-method-evaluation/1"},
+    "proposal_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "task_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "evaluated_candidates": {"type": "integer", "minimum": 64, "maximum": 4096},
+    "mask_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "best_mask": {"type": "integer", "minimum": 0, "maximum": 65535},
+    "result": {"type": "object"},
+    "result_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "baseline_energy": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"},
+    "best_energy": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"},
+    "energy_delta": {"type": "string", "pattern": "^-?(0|[1-9][0-9]*)$"},
+    "prediction_met": {"type": "boolean"}
+  }
+}

@@ -65,10 +65,45 @@ export async function handleLabsRequest(request: Request, repository: LabsReposi
         exchange_url: `/labs/v1/exchange/${REFERENCE_RULESET_ID}/${REFERENCE_FORK_ID}`,
         registry_url: "/labs/v1/registry",
         registry_csv_url: "/labs/v1/registry.csv",
+        methods_url: "/labs/v1/methods",
         test_vectors_url: "/labs/v1/test-vectors",
         human_registry_url: "/research",
         frontier,
       });
+    }
+    if (parts[2] === "methods" && parts.length === 3 && request.method === "GET") return json({
+      protocol: "proofwild-labs-method-discovery/1",
+      authority: false,
+      proposal_url: "/labs/v1/methods/proposals",
+      critique_url: "/labs/v1/methods/critiques",
+      evaluation_url: "/labs/v1/methods/evaluations",
+      model_url: "/labs/v1/methods/models",
+      dataset_url: "/labs/v1/methods/dataset",
+      task_source: "/labs/v1/methods/dataset#tasks",
+      object_url_template: "/labs/v1/methods/objects/{id}",
+      schema_urls: [
+        "/spec/labs/7.0.0/method-proposal.schema.json",
+        "/spec/labs/7.0.0/method-critique.schema.json",
+        "/spec/labs/7.0.0/method-evaluation.schema.json",
+        "/spec/labs/7.0.0/research-policy-model.schema.json",
+      ],
+    });
+    if (parts[2] === "methods" && parts[3] === "dataset" && parts.length === 4 && request.method === "GET") {
+      const limit = url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : undefined;
+      return json(await repository.methodDataset(url.searchParams.get("cursor"), limit ?? 32));
+    }
+    if (parts[2] === "methods" && parts[3] === "objects" && parts[4] && parts.length === 5 && request.method === "GET") {
+      const object = await repository.object(parts[4]);
+      if (!object || !["method_proposal", "method_critique", "method_evaluation", "research_model"].includes(object.kind)) return json({error: "not_found"}, 404);
+      return json({id: parts[4], ...object}, 200, {etag: `"${parts[4]}"`, "cache-control": "public, max-age=31536000, immutable"});
+    }
+    if (parts[2] === "methods" && parts[3] && parts.length === 4 && request.method === "POST") {
+      const kindByPath: Record<string, LabsObjectKind | undefined> = {proposals: "method_proposal", critiques: "method_critique", evaluations: "method_evaluation", models: "research_model"};
+      const kind = kindByPath[parts[3]];
+      const body = await boundedJson(request) as {id?: string; value?: LabsObjectValue};
+      if (!kind || !body.value || Object.keys(body).some((key) => key !== "id" && key !== "value")) return json({error: "invalid_request"}, 400);
+      const id = await repository.ingest(kind, body.value, body.id);
+      return json({status: "stored", id}, 201, {location: `/labs/v1/methods/objects/${id}`});
     }
     if (parts[2] === "test-vectors" && parts.length === 3 && request.method === "GET") return testVectors ? json(testVectors, 200, {"cache-control": "public, max-age=31536000, immutable"}) : json({error: "not_found"}, 404);
     if (parts[2] === "rulesets" && parts[3] && parts.length === 4 && request.method === "GET") return json({ruleset_id: parts[3], ruleset: await repository.ruleset(parts[3])}, 200, {etag: `"${parts[3]}"`, "cache-control": "public, max-age=31536000, immutable"});

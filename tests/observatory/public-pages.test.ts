@@ -347,7 +347,13 @@ describe("Proofwild 公开帮助、GEO 与法律页面", () => {
   });
 
   it("公开当前 LABS 与世界发行 JSON Schema，并为正文使用不可变缓存", async () => {
-    expect(PROTOCOL_SCHEMA_PATHS).toHaveLength(24);
+    expect(PROTOCOL_SCHEMA_PATHS).toHaveLength(28);
+    expect(PROTOCOL_SCHEMA_PATHS).toEqual(expect.arrayContaining([
+      "/spec/labs/7.0.0/method-proposal.schema.json",
+      "/spec/labs/7.0.0/method-critique.schema.json",
+      "/spec/labs/7.0.0/method-evaluation.schema.json",
+      "/spec/labs/7.0.0/research-policy-model.schema.json",
+    ]));
     for (const path of PROTOCOL_SCHEMA_PATHS) {
       const response = protocolSchemaResponse(path)!;
       expect(response.status).toBe(200);

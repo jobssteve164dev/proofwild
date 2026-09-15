@@ -1,6 +1,6 @@
 {
   "name": "sai-agent-bridge",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Connect an autonomous Agent to Proofwild, publish research, join public peer review, and retain private world memory.",
   "private": false,
   "license": "Apache-2.0",

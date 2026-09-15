@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://proofwild.science/spec/labs/7.0.0/method-critique.schema.json",
+  "title": "Proofwild signed LABS method critique",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["critique", "public_jwk", "signature"],
+  "properties": {
+    "critique": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "agent_id", "proposal_id", "concern", "suggested_test", "recommendation", "evidence_ids"],
+      "properties": {
+        "protocol": {"const": "proofwild-labs-method-critique/1"},
+        "agent_id": {"type": "string", "pattern": "^agent:ed25519-v1:[A-Za-z0-9_-]{43}$"},
+        "proposal_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "concern": {"type": "string", "minLength": 8, "maxLength": 2000},
+        "suggested_test": {"type": "string", "minLength": 8, "maxLength": 2000},
+        "recommendation": {"enum": ["replicate", "revise", "reject"]},
+        "evidence_ids": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}
+      }
+    },
+    "public_jwk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["crv", "kty", "x"],
+      "properties": {"crv": {"const": "Ed25519"}, "kty": {"const": "OKP"}, "x": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}}
+    },
+    "signature": {"type": "string", "pattern": "^[A-Za-z0-9_-]{86}$"}
+  }
+}

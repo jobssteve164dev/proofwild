@@ -4,6 +4,7 @@ import {homedir} from "node:os";
 import {dirname, resolve} from "node:path";
 import {createHash, randomUUID} from "node:crypto";
 import {SaiBridge} from "../../bridge/src/index.js";
+import type {LabsMethodDataset} from "../../labs/src/store.js";
 import {agentIdFromJwk, createClientAssertion, createIdentity, type AgentIdentity} from "../../identity/src/index.js";
 import {WORLD_RESOURCE_TILE_AXIS, type ActResult, type AgentObservation as Observation, type LegalAction} from "../../kernel/src/index.js";
 import {createJournalReview, createJournalStatement, createJournalVersion, signJournalReview, signJournalStatement, signJournalVersion, type JournalManifest, type JournalReviewBody, type JournalSubmission} from "../../journal/src/index.js";
@@ -21,8 +22,9 @@ export type {AgentMemoryEntry, AgentMemoryInput, AgentMemoryMutationResult, Agen
 export type {AgentSeasonInput, AgentSeasonState, AgentSeasonNotice, SeasonManifest} from "../../season/src/index.js";
 export {ECONOMIC_NETWORK_ID, WORLD_BRANCHES_PER_STRATUM, WORLD_MAX_SUPPLY, WORLD_REWARDED_BRANCH_COUNT, WORLD_RESOURCE_STRATA, WORLD_SUPPLY_SCHEDULE_BODY, WORLD_SUPPLY_SCHEDULE_ID, createWorldSupplySchedule, worldResourceBranch} from "../../kernel/src/index.js";
 export type {EcosystemWorldSupplyState, WorldSupplyObservation, WorldSupplyState} from "../../kernel/src/index.js";
-export {canonicalLabsSequence, createLabsResearchTask, createLabsWorldBranch, exactMeritFactor, executeLabsResearchTask, executeLabsWorldResearch, labsEnergy, labsSettlementChallengeBits, labsSymmetries, verifyLabsArtifact, verifyLabsClaim, verifyLabsResearchRecord, verifyLabsResearchTask, verifyLabsResult, verifyLabsWorldSubmission, REFERENCE_FORK_ID, REFERENCE_RULESET_ID, REFERENCE_SEARCH_METHOD_ARTIFACT, REFERENCE_SEARCH_METHOD_ARTIFACT_ID} from "../../labs/src/index.js";
-export type {LabsClaimType, LabsFrontier, LabsResearchArtifact, LabsResearchExecution, LabsResearchRecord, LabsResearchTask, LabsResult, LabsRuleset, LabsSettlementChallenge, LabsSignedClaim, LabsWorldBranch} from "../../labs/src/index.js";
+export {canonicalLabsSequence, compareLabsResearchPolicies, createLabsMethodCritique, createLabsMethodProposal, createLabsResearchTask, createLabsWorldBranch, evaluateLabsMethodProposal, exactMeritFactor, executeLabsResearchTask, executeLabsWorldResearch, labsEnergy, labsSettlementChallengeBits, labsSymmetries, proposeLabsMethodFromModel, trainLabsResearchPolicyModel, verifyLabsArtifact, verifyLabsClaim, verifyLabsMethodCritique, verifyLabsMethodEvaluation, verifyLabsMethodProposal, verifyLabsModelGeneratedProposal, verifyLabsResearchPolicyModel, verifyLabsResearchRecord, verifyLabsResearchTask, verifyLabsResult, verifyLabsWorldSubmission, REFERENCE_FORK_ID, REFERENCE_RULESET_ID, REFERENCE_SEARCH_METHOD_ARTIFACT, REFERENCE_SEARCH_METHOD_ARTIFACT_ID} from "../../labs/src/index.js";
+export type {LabsClaimType, LabsFrontier, LabsIsolatedMethodComparison, LabsMethodCritiqueInput, LabsMethodEvaluation, LabsMethodProposalInput, LabsResearchArtifact, LabsResearchExecution, LabsResearchPolicyModel, LabsResearchRecord, LabsResearchTask, LabsResult, LabsRuleset, LabsSettlementChallenge, LabsSignedClaim, LabsWorldBranch, SignedLabsMethodCritique, SignedLabsMethodProposal} from "../../labs/src/index.js";
+export type {LabsMethodDataset} from "../../labs/src/store.js";
 
 export const DEFAULT_PROOFWILD_NODE_URL = "https://proofwild.science";
 export const DEFAULT_PROOFWILD_IDENTITY_PATH = resolve(homedir(), ".proofwild", "agents", "agent.json");
@@ -356,4 +358,69 @@ export async function participateLabs(options: ParticipateLabsOptions = {}): Pro
   }
   const discovery = await bridge.labsDiscover();
   return {operation: "observe", agent_id: identity.agentId, node_url: nodeUrl, ...discovery};
+}
+
+export interface ResearchActionOptions {
+  action: "dataset" | "propose" | "critique" | "evaluate" | "train";
+  inputPath?: string;
+  objectId?: string;
+  parentModelId?: string;
+  nodeUrl?: string;
+  identityPath?: string;
+}
+
+async function researchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
+  const body = await response.json() as T & {error_description?: string; error?: string};
+  if (!response.ok) throw new Error(body.error_description ?? body.error ?? `研究接口失败（HTTP ${response.status}）`);
+  return body;
+}
+
+async function loadResearchDataset(nodeUrl: string): Promise<LabsMethodDataset> {
+  const merged: LabsMethodDataset = {protocol: "proofwild-labs-method-dataset/1", authority: false, cursor: null, next_cursor: null, tasks: [], proposals: [], critiques: [], evaluations: [], models: [], preference_pairs: []};
+  let cursor: string | null = null;
+  for (let pageIndex = 0; pageIndex < 4_096; pageIndex += 1) {
+    const page: LabsMethodDataset = await researchJson<LabsMethodDataset>(`${nodeUrl}/labs/v1/methods/dataset${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`);
+    merged.tasks.push(...page.tasks); merged.proposals.push(...page.proposals); merged.critiques.push(...page.critiques); merged.evaluations.push(...page.evaluations); merged.models.push(...page.models); merged.preference_pairs.push(...page.preference_pairs);
+    if (!page.next_cursor) return merged;
+    if (page.next_cursor === cursor) throw new Error("研究数据游标没有前进");
+    cursor = page.next_cursor;
+  }
+  throw new Error("研究数据分页超过固定上限");
+}
+
+export async function runResearchAction(options: ResearchActionOptions): Promise<unknown> {
+  const nodeUrl = (options.nodeUrl ?? DEFAULT_PROOFWILD_NODE_URL).replace(/\/$/, "");
+  if (options.action === "dataset") return loadResearchDataset(nodeUrl);
+  const labs = await import("../../labs/src/index.js");
+  const dataset = await loadResearchDataset(nodeUrl);
+  const submit = <T>(collection: string, id: string, value: T) => researchJson(`${nodeUrl}/labs/v1/methods/${collection}`, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({id, value})});
+  if (options.action === "propose" || options.action === "critique") {
+    if (!options.inputPath) throw new Error("研究提案或批评缺少输入文件");
+    const input = JSON.parse(await readFile(resolve(options.inputPath), "utf8"));
+    const identity = await loadOrCreateIdentity(options.identityPath);
+    if (options.action === "propose") {
+      const created = labs.createLabsMethodProposal(input, identity);
+      await submit("proposals", created.proposal_id, created.signed_proposal);
+      return {status: "stored", id: created.proposal_id, value: created.signed_proposal};
+    }
+    const created = labs.createLabsMethodCritique(input, identity);
+    await submit("critiques", created.critique_id, created.signed_critique);
+    return {status: "stored", id: created.critique_id, value: created.signed_critique};
+  }
+  if (options.action === "evaluate") {
+    const proposal = dataset.proposals.find(({id}) => id === options.objectId);
+    if (!proposal) throw new Error("找不到待评价的方法提案");
+    const task = dataset.tasks.find(({id}) => id === proposal.value.proposal.task_id);
+    if (!task || task.value.protocol !== "sai-labs-research-task/2") throw new Error("方法提案缺少可评价任务");
+    const ruleset = await researchJson<{ruleset: import("../../labs/src/index.js").LabsRuleset}>(`${nodeUrl}/labs/v1/rulesets/${encodeURIComponent(task.value.ruleset_id)}`);
+    const created = labs.evaluateLabsMethodProposal(ruleset.ruleset, task.value, proposal.value);
+    await submit("evaluations", created.evaluation_id, created.evaluation);
+    return {status: "stored", id: created.evaluation_id, value: created.evaluation};
+  }
+  const parent = options.parentModelId ? dataset.models.find(({id}) => id === options.parentModelId)?.value : undefined;
+  if (options.parentModelId && !parent) throw new Error("找不到父研究策略模型");
+  const created = labs.trainLabsResearchPolicyModel(dataset.proposals.map(({value}) => value), dataset.evaluations.map(({value}) => value), parent);
+  await submit("models", created.model_id, created.model);
+  return {status: "stored", id: created.model_id, value: created.model};
 }

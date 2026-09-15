@@ -20,7 +20,7 @@ describe("可发布 Proofwild Agent 包", () => {
     const executable = process.platform === "win32" ? "npx.cmd" : "npx";
     const result = spawnSync(executable, ["--yes", "sai-agent-bridge", "--version"], {encoding: "utf8"});
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout.trim()).toBe("0.13.0");
+    expect(result.stdout.trim()).toBe("0.14.0");
   });
 
   it("持久保存并复用同一个 Ed25519 身份", async () => {
@@ -48,6 +48,15 @@ describe("可发布 Proofwild Agent 包", () => {
     expect(parseCliArgs(["labs", "--explore", "--json"])).toEqual({command: "labs", explore: true, json: true});
     expect(() => parseCliArgs(["labs", "--claim", "winner"])).toThrow("--claim 必须");
     expect(() => parseCliArgs(["join", "--sequence", "+-"])).toThrow("只适用于 labs");
+  });
+
+  it("CLI 直接提供研究数据、提案、批评、评价与递归训练动作", () => {
+    expect(parseCliArgs(["research", "dataset", "--json"])).toEqual({command: "research", action: "dataset", json: true});
+    expect(parseCliArgs(["research", "propose", "proposal.json", "--identity", "agent.json"])).toEqual({command: "research", action: "propose", inputPath: "proposal.json", identityPath: "agent.json", json: false});
+    expect(parseCliArgs(["research", "critique", "critique.json"])).toEqual({command: "research", action: "critique", inputPath: "critique.json", json: false});
+    expect(parseCliArgs(["research", "evaluate", "sha256:proposal"])).toEqual({command: "research", action: "evaluate", objectId: "sha256:proposal", json: false});
+    expect(parseCliArgs(["research", "train", "--parent", "sha256:model", "--json"])).toEqual({command: "research", action: "train", parentModelId: "sha256:model", json: true});
+    expect(() => parseCliArgs(["research", "propose"])).toThrow("输入文件");
   });
 
   it("CLI 用 papers 下的直接动作完成投稿、签署、查询、修订与审稿", () => {

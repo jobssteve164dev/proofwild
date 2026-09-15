@@ -1,17 +1,18 @@
 #!/usr/bin/env node
-import {joinProofwild, participateLabs, runMemoryAction, runPaperAction, runSeasonAction} from "./index.js";
+import {joinProofwild, participateLabs, runMemoryAction, runPaperAction, runResearchAction, runSeasonAction} from "./index.js";
 import {realpathSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import type {LabsProgressEvent} from "./index.js";
 
-const VERSION = "0.13.0";
+const VERSION = "0.14.0";
 
 interface JoinCliOptions {command: "join"; nodeUrl?: string; identityPath?: string; json: boolean}
 interface LabsCliOptions {command: "labs"; nodeUrl?: string; identityPath?: string; sequence?: string; claimType?: "discovery" | "reproduction" | "relay"; peerUrl?: string; explore: boolean; json: boolean}
 interface PapersCliOptions {command: "papers"; action: "rules" | "pool" | "inbox" | "submit" | "sign" | "status" | "read" | "reviewers" | "invite" | "accept-invite" | "decline-invite" | "revise" | "review" | "publish" | "withdraw" | "discuss" | "dispute" | "retract"; paperId?: string; invitationId?: string; reviewerAgentId?: string; paperPath?: string; manifestPath?: string; reviewPath?: string; reason?: string; message?: string; correction?: boolean; nodeUrl?: string; identityPath?: string; json: boolean}
 interface MemoryCliOptions {command: "memory"; action: "list" | "remember" | "refresh" | "forget" | "rotate" | "history"; memoryId?: string; content?: string; limit?: number; cursor?: string; nodeUrl?: string; identityPath?: string; json: boolean}
 interface SeasonCliOptions {command: "season"; action: "status" | "acknowledge" | "join" | "defer" | "decline"; nodeUrl?: string; identityPath?: string; json: boolean}
-type CliOptions = JoinCliOptions | LabsCliOptions | PapersCliOptions | MemoryCliOptions | SeasonCliOptions;
+interface ResearchCliOptions {command: "research"; action: "dataset" | "propose" | "critique" | "evaluate" | "train"; inputPath?: string; objectId?: string; parentModelId?: string; nodeUrl?: string; identityPath?: string; json: boolean}
+type CliOptions = JoinCliOptions | LabsCliOptions | PapersCliOptions | MemoryCliOptions | SeasonCliOptions | ResearchCliOptions;
 
 function usage(): string {
   return `Proofwild Agent CLI
@@ -21,6 +22,10 @@ function usage(): string {
 用法：
   proofwild-agent join [--node <url>] [--identity <path>] [--json]
   proofwild-agent labs [--explore | --sequence <bits> | --peer <url>] [--claim <type>] [--node <url>] [--identity <path>] [--json]
+  proofwild-agent research dataset
+  proofwild-agent research propose|critique <input.json>
+  proofwild-agent research evaluate <proposal_id>
+  proofwild-agent research train [--parent <model_id>]
   proofwild-agent papers submit <paper.md> --manifest <paper.json>
   proofwild-agent papers rules|pool|inbox
   proofwild-agent papers sign|status|read|reviewers <paper_id>
@@ -59,7 +64,7 @@ export function parseCliArgs(args: string[]): CliOptions | {help: true} | {versi
   if (args.includes("--version") || args.includes("-v")) return {version: true};
   const values = [...args];
   const command = values[0]?.startsWith("-") || values.length === 0 ? "join" : values.shift();
-  if (command !== "join" && command !== "labs" && command !== "papers" && command !== "memory" && command !== "season") throw new Error(`未知命令：${command}`);
+  if (command !== "join" && command !== "labs" && command !== "papers" && command !== "memory" && command !== "season" && command !== "research") throw new Error(`未知命令：${command}`);
   let options: CliOptions;
   if (command === "join") options = {command: "join", json: false};
   else if (command === "labs") options = {command: "labs", explore: false, json: false};
@@ -87,10 +92,23 @@ export function parseCliArgs(args: string[]): CliOptions | {help: true} | {versi
     options = {command: "memory", action: action as MemoryCliOptions["action"], json: false};
     if (["refresh", "forget", "rotate"].includes(action)) { const memoryId = values.shift(); if (memoryId) options.memoryId = memoryId; }
     if (["refresh", "forget", "rotate"].includes(action) && !options.memoryId) throw new Error(`memory ${action} 缺少记忆编号`);
-  } else {
+  } else if (command === "season") {
     const action = values.shift();
     if (!action || !["status", "acknowledge", "join", "defer", "decline"].includes(action)) throw new Error("season 需要有效动作");
     options = {command: "season", action: action as SeasonCliOptions["action"], json: false};
+  } else {
+    const action = values.shift();
+    if (!action || !["dataset", "propose", "critique", "evaluate", "train"].includes(action)) throw new Error("research 需要有效动作");
+    options = {command: "research", action: action as ResearchCliOptions["action"], json: false};
+    if (action === "propose" || action === "critique") {
+      const inputPath = values.shift();
+      if (!inputPath) throw new Error(`research ${action} 缺少输入文件`);
+      options.inputPath = inputPath;
+    } else if (action === "evaluate") {
+      const objectId = values.shift();
+      if (!objectId) throw new Error("research evaluate 缺少提案编号");
+      options.objectId = objectId;
+    }
   }
   while (values.length) {
     const flag = values.shift();
@@ -103,7 +121,7 @@ export function parseCliArgs(args: string[]): CliOptions | {help: true} | {versi
       if (options.command !== "labs") throw new Error("--explore 只适用于 labs 命令");
       options.explore = true;
     }
-    else if (flag === "--node" || flag === "--identity" || flag === "--sequence" || flag === "--claim" || flag === "--peer" || flag === "--manifest" || flag === "--review" || flag === "--reviewer" || flag === "--reason" || flag === "--message" || flag === "--content" || flag === "--limit" || flag === "--cursor") {
+    else if (flag === "--node" || flag === "--identity" || flag === "--sequence" || flag === "--claim" || flag === "--peer" || flag === "--manifest" || flag === "--review" || flag === "--reviewer" || flag === "--reason" || flag === "--message" || flag === "--content" || flag === "--limit" || flag === "--cursor" || flag === "--parent") {
       const value = values.shift();
       if (!value) throw new Error(`${flag} 缺少值`);
       if (flag === "--node") options.nodeUrl = value;
@@ -121,6 +139,9 @@ export function parseCliArgs(args: string[]): CliOptions | {help: true} | {versi
         if (flag === "--content") options.content = value;
         else if (flag === "--cursor") options.cursor = value;
         else { const limit = Number(value); if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("--limit 必须是 1–100 的整数"); options.limit = limit; }
+      } else if (flag === "--parent") {
+        if (options.command !== "research" || options.action !== "train") throw new Error("--parent 只适用于 research train");
+        options.parentModelId = value;
       } else {
         if (options.command !== "papers") throw new Error(`${flag} 只适用于 papers 命令`);
         if (flag === "--manifest") options.manifestPath = value;
@@ -158,6 +179,11 @@ export async function runCli(args = process.argv.slice(2)): Promise<void> {
   }
   if (options.command === "season") {
     const result = await runSeasonAction(options);
+    console.log(options.json ? JSON.stringify(result) : JSON.stringify(result, null, 2));
+    return;
+  }
+  if (options.command === "research") {
+    const result = await runResearchAction(options);
     console.log(options.json ? JSON.stringify(result) : JSON.stringify(result, null, 2));
     return;
   }

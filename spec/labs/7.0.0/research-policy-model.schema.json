@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://proofwild.science/spec/labs/7.0.0/research-policy-model.schema.json",
+  "title": "Proofwild reference research policy model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "generation", "parent_model_id", "training_evaluation_ids", "strategy_scores", "preferred_traversal", "training_digest"],
+  "properties": {
+    "protocol": {"const": "proofwild-research-policy-model/1"},
+    "generation": {"type": "integer", "minimum": 1, "maximum": 1000000},
+    "parent_model_id": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"},
+    "training_evaluation_ids": {"type": "array", "minItems": 2, "maxItems": 65536, "uniqueItems": true, "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}},
+    "strategy_scores": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["traversal", "mean_utility_ppm", "evaluation_count"],
+        "properties": {
+          "traversal": {"enum": ["identity", "gray", "bit_reverse"]},
+          "mean_utility_ppm": {"type": "integer", "minimum": 0, "maximum": 1000000},
+          "evaluation_count": {"type": "integer", "minimum": 0, "maximum": 65536}
+        }
+      }
+    },
+    "preferred_traversal": {"enum": ["identity", "gray", "bit_reverse"]},
+    "training_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}
